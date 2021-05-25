@@ -7,10 +7,20 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:6380:6379"
-
-  node1:
-    image: varnish:latest
+  
+  nginx:
+    image: nginx:latest
     restart: unless-stopped
+    ports:
+      - "8084:80"
+  
+  node1:
+    build:
+      dockerfile: Dockerfile.varnish
+      context: varnish
+    restart: unless-stopped
+    environment:
+      BACKEND: "nginx"
     ports:
       - 8085:80
 
@@ -27,7 +37,9 @@ services:
       PURGE_ADDR: node1:80
 
   node2:
-    image: varnish:latest
+    build:
+      dockerfile: Dockerfile.varnish
+      context: varnish
     restart: unless-stopped
     ports:
       - 8086:80
