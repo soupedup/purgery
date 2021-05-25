@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -93,4 +94,9 @@ func (c *Cache) Next(ctx context.Context) (cp, url string, err error) {
 	}
 
 	return
+}
+
+// Save stores the cache's checkpoint to the given value.
+func (c *Cache) Store(ctx context.Context, checkpoint string) (err error) {
+	return c.client.Set(ctx, c.nextKeys[1], checkpoint, time.Minute).Err()
 }

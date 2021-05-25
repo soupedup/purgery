@@ -62,10 +62,10 @@ func main() {
 			time.Sleep(sleepFor)
 			continue // retry after sleeping
 		}
-
 		log.Printf("purged %q; saving checkpoint ...", url)
 
-		panic("implement checkpoint saving AFTER purging has been finalized")
-		_ = checkpoint
+		if err = cache.Store(ctx, checkpoint); err != nil {
+			log.Fatalf("failed storing checkpoint: %q", err)
+		}
 	}
 }
