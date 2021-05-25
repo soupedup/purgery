@@ -1,0 +1,49 @@
+version: '3.7'
+
+services:
+
+  redis:
+    image: redis:6.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+
+  nginx1:
+    image: nginx:1.21-alpine
+    restart: unless-stopped
+    ports:
+      - 8085:80
+    environment:
+      NGINX_PORT: 80
+      
+  purger_1:
+    depends_on:
+      - redis
+      - nginx1
+    build: 
+      context: .
+    restart: unless-stopped
+    environment:
+      FLY_ALLOC_ID: purger_1
+      REDIS_URL: redis://redis
+      PURGE_URL: http://nginx1/purge
+
+  nginx2:
+    image: nginx:1.21-alpine
+    restart: unless-stopped
+    ports:
+      - 8086:80
+    environment:
+      NGINX_PORT: 80
+      
+  purger_2:
+    depends_on:
+      - redis
+      - nginx2
+    build: 
+      context: .
+    restart: unless-stopped
+    environment:
+      FLY_ALLOC_ID: purger_2
+      REDIS_URL: redis://redis
+      PURGE_URL: http://nginx2/purge

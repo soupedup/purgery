@@ -5,77 +5,66 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/jsierles/clvr/internal/db"
+	"github.com/jsierles/clvr/internal/cache"
+	"github.com/jsierles/clvr/internal/env"
 	"github.com/jsierles/clvr/internal/purge"
 )
 
 func init() {
 	log.SetOutput(os.Stderr)
 	log.SetPrefix("clvr ")
-	log.SetFlags(log.LUTC | log.Ldate | log.Ltime)
+	log.SetFlags(log.LUTC | log.Ldate | log.Ltime | log.Lmicroseconds | log.Lmsgprefix)
 }
 
-// there's a set of caching servers (we'll call these nodes)
-// there's a *source of truth* which contains the latest timestamp each
-// domain has been purge.
-
 func main() {
+	allocID, err := env.AllocID()
+	if err != nil {
+		log.Fatalf("failed fetching allocID: %v", err)
+	}
+
+	redisURL, err := env.RedisURL()
+	if err != nil {
+		log.Fatalf("failed fetching redisURL: %v", err)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	db := dialDB(ctx)
+	cache, err := cache.Dial(ctx, allocID, redisURL)
+	if err != nil {
+		log.Fatalf("failed dialing cache: %v", err)
+	}
 
 	for {
-		if err := ctx.Err(); err != nil {
-			log.Print("context canceled; bailing ...")
+		if err = ctx.Err(); err != nil {
+			log.Printf("context canceled; bailing ...")
 
 			break
 		}
 
-		if !cycle(ctx, db) {
-			break
+		const sleepFor = time.Millisecond << 7
+
+		var checkpoint, url string
+		switch checkpoint, url, err = cache.Next(ctx); {
+		case err != nil:
+			log.Fatalf("failed fetching url to purge: %v", err)
+		case url == "":
+			time.Sleep(sleepFor) // nothing to purge
+			continue
 		}
+
+		if err = purge.URL(ctx, url); err != nil {
+			log.Printf("failed purging %q: %v", url, err)
+
+			time.Sleep(sleepFor)
+			continue // retry after sleeping
+		}
+
+		log.Printf("purged %q; saving checkpoint ...", url)
+
+		panic("implement checkpoint saving AFTER purging has been finalized")
 	}
-
-	log.Printf("exiting ...")
-}
-
-func cycle(ctx context.Context, db *db.DB) bool {
-	prefixes, err := db.PrefixesToPurge(ctx)
-	if err != nil {
-		log.Printf("failed getting prefixes: %v", err)
-
-		return false
-	}
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	for _, prefix := range prefixes {
-		wg.Add(1)
-
-		go func(prefix string) {
-			defer wg.Done()
-
-			purge.Node(ctx, prefix, time.Now())
-		}(prefix)
-	}
-
-	return true
-}
-
-func dialDB(ctx context.Context) (database *db.DB) {
-	log.Print("dialing db ...")
-
-	var err error
-	if database, err = db.Dial(ctx); err != nil {
-		log.Fatalf("failed dialing db: %v", err)
-	}
-	log.Print("dialed db.")
-
-	return
 }

@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
+	"os"
+	"strings"
 )
 
-const purgeURL = "http://localhost/purge"
+var purgeURL = os.Getenv("PURGE_URL")
 
-// Node purges the node at the given URL for the given stamp.
-func Node(ctx context.Context, prefix string, stamp time.Time) (err error) {
+// URL purges the given URL from the local node.
+func URL(ctx context.Context, url string) (err error) {
 	var req *http.Request
-	if req, err = http.NewRequestWithContext(ctx, "PURGE", purgeURL, nil); err != nil {
+	if req, err = http.NewRequestWithContext(ctx, "PURGE", purgeURL, strings.NewReader(url)); err != nil {
 		return
 	}
+
+	// TODO(@azazeal): implement timeouts and backoff
 
 	var res *http.Response
 	if res, err = http.DefaultClient.Do(req); err != nil {

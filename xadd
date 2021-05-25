@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+redis-cli -u $REDIS_URL XADD clvr:purge \* url https://google.com
