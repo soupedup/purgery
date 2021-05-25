@@ -15,6 +15,10 @@ func AllocID() (string, error) {
 	return fetch("FLY_ALLOC_ID")
 }
 
+func PurgeAddr() (string, error) {
+	return fetch("PURGE_ADDR")
+}
+
 type errUndefinedOrBlank string
 
 func (err errUndefinedOrBlank) Error() string {

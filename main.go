@@ -66,5 +66,6 @@ func main() {
 		log.Printf("purged %q; saving checkpoint ...", url)
 
 		panic("implement checkpoint saving AFTER purging has been finalized")
+		_ = checkpoint
 	}
 }

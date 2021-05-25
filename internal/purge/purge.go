@@ -3,24 +3,53 @@ package purge
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
-	"strings"
+	"time"
+
+	"github.com/jsierles/clvr/internal/env"
 )
 
-var purgeURL = os.Getenv("PURGE_URL")
+var purgeAddr string
+
+func init() {
+	var err error
+	if purgeAddr, err = env.PurgeAddr(); err != nil {
+		panic(err)
+	}
+}
+
+var (
+	dialer = (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	})
+
+	client = http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, purgeAddr)
+			},
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+)
 
 // URL purges the given URL from the local node.
 func URL(ctx context.Context, url string) (err error) {
 	var req *http.Request
-	if req, err = http.NewRequestWithContext(ctx, "PURGE", purgeURL, strings.NewReader(url)); err != nil {
+	if req, err = http.NewRequestWithContext(ctx, "PURGE", url, nil); err != nil {
 		return
 	}
 
 	// TODO(@azazeal): implement timeouts and backoff
 
 	var res *http.Response
-	if res, err = http.DefaultClient.Do(req); err != nil {
+	if res, err = client.Do(req); err != nil {
 		return
 	}
 	defer res.Body.Close()
