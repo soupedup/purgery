@@ -20,16 +20,22 @@ func init() {
 }
 
 func main() {
-
 	addr, err := env.PurgeAddr()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed fetching purgeAddr: %v", err)
 	}
-	panic(addr)
+
+	log.Print("")
+	log.Print("")
+	log.Print("")
+	log.Printf("PURGE_ADDR: %q", addr)
+	log.Print("")
+	log.Print("")
+	log.Print("")
 
 	allocID, err := env.PurgerID()
 	if err != nil {
-		log.Fatalf("failed fetching allocID: %v", err)
+		log.Fatalf("failed fetching purgerID: %v", err)
 	}
 
 	redisURL, err := env.RedisURL()
