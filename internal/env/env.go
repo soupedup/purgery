@@ -13,10 +13,10 @@ func RedisURL() (string, error) {
 	return fetch("REDIS_URL")
 }
 
-// AllocID reports the value of the $FLY_ALLOC_ID environment variable or an
+// PurgerID reports the value of the $PURGER_ID environment variable or an
 // error in case it's either undefined or empty.
-func AllocID() (string, error) {
-	return fetch("FLY_ALLOC_ID")
+func PurgerID() (string, error) {
+	return fetch("PURGER_ID")
 }
 
 // PurgeAddr reports the value of the $PURGE_ADDR environment variable or an

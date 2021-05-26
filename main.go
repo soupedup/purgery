@@ -20,7 +20,7 @@ func init() {
 }
 
 func main() {
-	allocID, err := env.AllocID()
+	allocID, err := env.PurgerID()
 	if err != nil {
 		log.Fatalf("failed fetching allocID: %v", err)
 	}

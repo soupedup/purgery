@@ -32,9 +32,9 @@ services:
       context: .
     restart: unless-stopped
     environment:
-      FLY_ALLOC_ID: purger_1
       REDIS_URL: redis://redis
       PURGE_ADDR: node1:80
+      PURGER_ID: purger_1
 
   node2:
     build:
@@ -52,6 +52,6 @@ services:
       context: .
     restart: unless-stopped
     environment:
-      FLY_ALLOC_ID: purger_2
       REDIS_URL: redis://redis
+      PURGER_ID: purger_2
       PURGE_ADDR: node2:80
