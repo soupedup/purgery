@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-PURGER_ID=${FLY_ALLOC_ID} PURGE_ADDR=${FLY_REGION}.${PROXY_APP_NAME}.internal:80 /binary
+PURGER_ID=${FLY_ALLOC_ID} PURGE_ADDR=${FLY_REGION}.${PROXY_APP_NAME}.internal:80 /usr/local/bin/purgery
