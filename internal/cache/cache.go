@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ns     = "clvr"
+	ns     = "soupedup:purgery"
 	stream = ns + ":purge"
 )
 
