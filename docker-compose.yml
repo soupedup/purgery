@@ -3,7 +3,7 @@ version: '3.7'
 services:
 
   redis:
-    image: redis:6.2
+    image: redis:6.2 # eqalpha/keydb:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:6380:6379"

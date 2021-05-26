@@ -25,10 +25,6 @@ func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
 		c = &Cache{
 			client:   client,
 			purgerID: purgerID,
-			checkpointKeys: []string{
-				stream,
-				fmt.Sprintf("%s:checkpoints:%s", ns, purgerID),
-			},
 		}
 	}
 
@@ -37,10 +33,8 @@ func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
 
 // Cache wraps the functionality of our redis client.
 type Cache struct {
-	client         *redis.Client
-	purgerID       string
-	checkpointKeys []string
-	nextKeys       []string
+	client   *redis.Client
+	purgerID string
 }
 
 // Close implements io.Closer for Cache.
@@ -59,10 +53,14 @@ var checkpointScript = redis.NewScript(`
 	return cp
 `)
 
+func (c *Cache) checkpointKey() string {
+	return fmt.Sprintf("%s:checkpoints:%s", ns, c.purgerID)
+}
+
 func (c *Cache) checkpoint(ctx context.Context) (string, error) {
 	keys := []string{
 		stream,
-		fmt.Sprintf("%s:checkpoints:%s", ns, c.purgerID),
+		c.checkpointKey(),
 	}
 
 	return checkpointScript.Run(ctx, c.client, keys).Text()
@@ -96,6 +94,6 @@ func (c *Cache) Next(ctx context.Context) (cp, url string, err error) {
 }
 
 // Store saves the given value as the Cache's checkpoint.
-func (c *Cache) Store(ctx context.Context, checkpoint string) (err error) {
-	return c.client.Set(ctx, c.nextKeys[1], checkpoint, time.Minute).Err()
+func (c *Cache) Store(ctx context.Context, checkpoint string) error {
+	return c.client.Set(ctx, c.checkpointKey(), checkpoint, time.Minute).Err()
 }

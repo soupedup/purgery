@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-redis-cli -u $REDIS_URL XADD clvr:purge \* url http://localhost:8085
+MINID=$(date +%s%3N)-0
+echo ${MINID}
+
+redis-cli -u $REDIS_URL XADD clvr:purge MINID \~ ${MINID} \* url http://localhost:8085
