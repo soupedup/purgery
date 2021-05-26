@@ -67,7 +67,7 @@ func main() {
 		log.Printf("purged %q; saving checkpoint ...", url)
 
 		if err = cache.Store(ctx, checkpoint); err != nil {
-			log.Fatalf("failed storing checkpoint: %q", err)
+			log.Printf("failed storing checkpoint: %q", err)
 		}
 	}
 }

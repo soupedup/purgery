@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	ns     = "soupedup:purgery"
-	stream = ns + ":purge"
+	keyspace = "purgery:"
+	stream   = keyspace + "purge"
 )
 
 func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
@@ -43,7 +43,11 @@ func (c *Cache) Close() error {
 }
 
 var checkpointScript = redis.NewScript(`
-	local cp = redis.call("TIME")[1] .. "-0"
+	local at = redis.call('TIME')
+	local ms = at[2] - (at[2] % 1000)
+	ms = (at[1] * 1000) + (ms / 1000)
+
+	local cp = ms .. "-0"
 
 	if not redis.call("SET", KEYS[2], cp, "EX", 86400, "NX") then
 		-- key existed; read what's in it and use it as the checkpoint
@@ -54,7 +58,7 @@ var checkpointScript = redis.NewScript(`
 `)
 
 func (c *Cache) checkpointKey() string {
-	return fmt.Sprintf("%s:checkpoints:%s", ns, c.purgerID)
+	return fmt.Sprintf("%scheckpoints:%s", keyspace, c.purgerID)
 }
 
 func (c *Cache) checkpoint(ctx context.Context) (string, error) {
@@ -75,7 +79,7 @@ func (c *Cache) Next(ctx context.Context) (cp, url string, err error) {
 
 	cmd := c.client.XRead(ctx, &redis.XReadArgs{
 		Count:   1,
-		Block:   time.Second >> 1,
+		Block:   time.Second,
 		Streams: []string{stream, cp},
 	})
 
