@@ -45,7 +45,7 @@ var (
 // URL purges the given URL from the local node.
 func URL(ctx context.Context, url string) (err error) {
 	var req *http.Request
-	if req, err = http.NewRequestWithContext(ctx, "PURGE", url, nil); err != nil {
+	if req, err = http.NewRequestWithContext(ctx, "BAN", url, nil); err != nil {
 		return
 	}
 
