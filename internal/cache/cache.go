@@ -3,13 +3,12 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const ns = "clvr"
@@ -48,20 +47,20 @@ func (c *Cache) Close() error {
 }
 
 var nextScript = redis.NewScript(`
-	local cp = "0-0"
+	local cp = redis.call("TIME")[1] .. "-0"
 
-	if redis.call("SET", KEYS[2], cp, "EX", 60, "NX") ~= true then
+	if not redis.call("SET", KEYS[2], cp, "EX", 86400, "NX") then
 		-- key existed; read what's in it and use it as the checkpoint
 		cp = redis.call("GET", KEYS[2])
 	end
 
 	-- NOTE: we cannot block from a lua script
 	local ret = redis.call("XREAD", "COUNT", 1, "STREAMS", KEYS[1], cp)
-	if ret ~= false then
+	if ret then
 		ret = ret[1][2][1]
 
-		local obj = { id = ret[1], url = ret[2][2] }
-		ret = cjson.encode(obj)
+		local obj = { ret[1], ret[2][2] }
+		ret = cmsgpack.pack(obj)
 	end
 	return ret
 `)
@@ -80,14 +79,13 @@ func (c *Cache) Next(ctx context.Context) (cp, url string, err error) {
 		return
 	}
 
-	log.Print(res)
-
 	var tuple struct {
-		ID  string `json:"id"`
-		URL string `json:"url"`
+		_   struct{} `msgpack:",as_array"`
+		ID  string
+		URL string
 	}
 
-	dec := json.NewDecoder(strings.NewReader(res))
+	dec := msgpack.NewDecoder(strings.NewReader(res))
 	if err = dec.Decode(&tuple); err == nil {
 		cp = tuple.ID
 		url = tuple.URL
