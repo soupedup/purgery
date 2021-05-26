@@ -7,14 +7,20 @@ import (
 	"strings"
 )
 
+// RedisURL reports the value of the $REDIS_URL environment variable or an
+// error in case it's either undefined or empty.
 func RedisURL() (string, error) {
 	return fetch("REDIS_URL")
 }
 
+// AllocID reports the value of the $FLY_ALLOC_ID environment variable or an
+// error in case it's either undefined or empty.
 func AllocID() (string, error) {
 	return fetch("FLY_ALLOC_ID")
 }
 
+// PurgeAddr reports the value of the $PURGE_ADDR environment variable or an
+// error in case it's either undefined or empty.
 func PurgeAddr() (string, error) {
 	return fetch("PURGE_ADDR")
 }
