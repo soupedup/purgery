@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
-MINID=$(date +%s%3N)-0
+MINID=$(date +%s%3N)
+MINID=$(expr ${MINID} - 86400000)
 
 redis-cli -u $REDIS_URL XADD purgery:purge MINID \~ ${MINID} \* url http://localhost:8085
