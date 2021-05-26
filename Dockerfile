@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 go build \
     -o binary \
     .
 
-FROM scratch
+FROM bash
 COPY --from=build /build/binary /
-CMD [ "/binary" ]
+COPY start.sh /start.sh
+CMD [ "/start.sh" ]
