@@ -15,11 +15,18 @@ import (
 
 func init() {
 	log.SetOutput(os.Stderr)
-	log.SetPrefix("clvr ")
+	log.SetPrefix("purgery ")
 	log.SetFlags(log.LUTC | log.Ldate | log.Ltime | log.Lmicroseconds | log.Lmsgprefix)
 }
 
 func main() {
+
+	addr, err := env.PurgeAddr()
+	if err != nil {
+		panic(err)
+	}
+	panic(addr)
+
 	allocID, err := env.PurgerID()
 	if err != nil {
 		log.Fatalf("failed fetching allocID: %v", err)
