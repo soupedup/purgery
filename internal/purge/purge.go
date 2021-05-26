@@ -29,7 +29,7 @@ var (
 	client = http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				log.Printf("dialing %q ...", purgeAddr)
+				log.Printf("dialing (%s) %q ...", network, purgeAddr)
 
 				return dialer.DialContext(ctx, network, purgeAddr)
 			},
