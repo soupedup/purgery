@@ -39,28 +39,30 @@ func main() {
 	}
 
 	for {
+		const errorSleep = time.Millisecond << 6
+		if err != nil {
+			time.Sleep(errorSleep)
+		}
 		if err = ctx.Err(); err != nil {
 			log.Printf("context canceled; bailing ...")
 
 			break
 		}
 
-		const sleepFor = time.Millisecond << 5
-
 		var checkpoint, url string
 		switch checkpoint, url, err = cache.Next(ctx); {
 		case err != nil:
-			log.Fatalf("failed fetching url to purge: %v", err)
+			log.Printf("failed fetching url to purge: %v", err)
+
+			continue
 		case url == "":
-			time.Sleep(sleepFor) // nothing to purge
 			continue
 		}
 
 		if err = purge.URL(ctx, url); err != nil {
 			log.Printf("failed purging %q: %v", url, err)
 
-			time.Sleep(sleepFor)
-			continue // retry after sleeping
+			continue
 		}
 		log.Printf("purged %q; saving checkpoint ...", url)
 

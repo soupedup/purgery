@@ -4,14 +4,15 @@ package cache
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
-const ns = "clvr"
+const (
+	ns     = "clvr"
+	stream = ns + ":purge"
+)
 
 func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
 	var opts *redis.Options
@@ -24,8 +25,8 @@ func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
 		c = &Cache{
 			client:   client,
 			purgerID: purgerID,
-			nextKeys: []string{
-				fmt.Sprintf("%s:purge", ns),
+			checkpointKeys: []string{
+				stream,
 				fmt.Sprintf("%s:checkpoints:%s", ns, purgerID),
 			},
 		}
@@ -36,9 +37,10 @@ func Dial(ctx context.Context, purgerID, url string) (c *Cache, err error) {
 
 // Cache wraps the functionality of our redis client.
 type Cache struct {
-	client   *redis.Client
-	purgerID string
-	nextKeys []string
+	client         *redis.Client
+	purgerID       string
+	checkpointKeys []string
+	nextKeys       []string
 }
 
 // Close implements io.Closer for Cache.
@@ -46,7 +48,7 @@ func (c *Cache) Close() error {
 	return c.client.Close()
 }
 
-var nextScript = redis.NewScript(`
+var checkpointScript = redis.NewScript(`
 	local cp = redis.call("TIME")[1] .. "-0"
 
 	if not redis.call("SET", KEYS[2], cp, "EX", 86400, "NX") then
@@ -54,47 +56,46 @@ var nextScript = redis.NewScript(`
 		cp = redis.call("GET", KEYS[2])
 	end
 
-	-- NOTE: we cannot block from a lua script
-	local ret = redis.call("XREAD", "COUNT", 1, "STREAMS", KEYS[1], cp)
-	if ret then
-		ret = ret[1][2][1]
-
-		local obj = { ret[1], ret[2][2] }
-		ret = cmsgpack.pack(obj)
-	end
-	return ret
+	return cp
 `)
 
-// Next returns the next URL that must be purged.
+func (c *Cache) checkpoint(ctx context.Context) (string, error) {
+	keys := []string{
+		stream,
+		fmt.Sprintf("%s:checkpoints:%s", ns, c.purgerID),
+	}
+
+	return checkpointScript.Run(ctx, c.client, keys).Text()
+}
+
+// Next returns the next url to be purge or empty strings in case such
+// a URL does not exist yet.
 func (c *Cache) Next(ctx context.Context) (cp, url string, err error) {
-	var res string
-	switch res, err = nextScript.Run(ctx, c.client, c.nextKeys).Text(); err {
-	case nil:
-		break
+	if cp, err = c.checkpoint(ctx); err != nil {
+		return
+	}
+
+	cmd := c.client.XRead(ctx, &redis.XReadArgs{
+		Count:   1,
+		Block:   time.Second >> 1,
+		Streams: []string{stream, cp},
+	})
+
+	switch cmd.Err() {
 	case redis.Nil:
+		cp = ""
 		err = nil
+	case nil:
+		msg := cmd.Val()[0].Messages[0]
 
-		return
-	default:
-		return
-	}
-
-	var tuple struct {
-		_   struct{} `msgpack:",as_array"`
-		ID  string
-		URL string
-	}
-
-	dec := msgpack.NewDecoder(strings.NewReader(res))
-	if err = dec.Decode(&tuple); err == nil {
-		cp = tuple.ID
-		url = tuple.URL
+		cp = msg.ID
+		url = msg.Values["url"].(string)
 	}
 
 	return
 }
 
-// Save stores the cache's checkpoint to the given value.
+// Store saves the given value as the Cache's checkpoint.
 func (c *Cache) Store(ctx context.Context, checkpoint string) (err error) {
 	return c.client.Set(ctx, c.nextKeys[1], checkpoint, time.Minute).Err()
 }
