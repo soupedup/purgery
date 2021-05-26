@@ -45,7 +45,7 @@ func main() {
 			break
 		}
 
-		const sleepFor = time.Millisecond << 7
+		const sleepFor = time.Millisecond << 6
 
 		var checkpoint, url string
 		switch checkpoint, url, err = cache.Next(ctx); {
