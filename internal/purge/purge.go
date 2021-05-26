@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jsierles/clvr/internal/env"
+	"github.com/soupedup/purgery/internal/env"
 )
 
 var purgeAddr string

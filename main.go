@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jsierles/clvr/internal/cache"
-	"github.com/jsierles/clvr/internal/env"
-	"github.com/jsierles/clvr/internal/purge"
+	"github.com/soupedup/purgery/internal/cache"
+	"github.com/soupedup/purgery/internal/env"
+	"github.com/soupedup/purgery/internal/purge"
 )
 
 func init() {

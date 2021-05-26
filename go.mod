@@ -1,4 +1,4 @@
-module github.com/jsierles/clvr
+module github.com/soupedup/purgery
 
 go 1.16
 
