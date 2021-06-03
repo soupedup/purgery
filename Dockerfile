@@ -12,6 +12,6 @@ RUN CGO_ENABLED=0 go build \
     .
 
 FROM bash
-COPY --from=build /build/binary /
+COPY --from=build /build/binary /usr/local/bin/purgery
 COPY start.sh /start.sh
 CMD [ "/start.sh" ]
