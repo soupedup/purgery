@@ -41,4 +41,4 @@ A sample Fly.io setup is coming soon.
 
 ## Development
 
-An example stack can be run with `docker-compose up` and using the accompanying "
+An example stack can be run with `docker-compose up`, and purges may be performed using the `purge.sh` script.
