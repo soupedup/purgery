@@ -2,85 +2,79 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
+
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/soupedup/purgery/internal/cache"
 	"github.com/soupedup/purgery/internal/env"
+	"github.com/soupedup/purgery/internal/log"
 	"github.com/soupedup/purgery/internal/purge"
+	"go.uber.org/zap"
 )
 
-func init() {
-	log.SetOutput(os.Stderr)
-	log.SetPrefix("purgery ")
-	log.SetFlags(log.LUTC | log.Ldate | log.Ltime | log.Lmicroseconds | log.Lmsgprefix)
-}
+const (
+	_ = iota + 1
+	ecLoadConfig
+	ecDialCache
+)
 
 func main() {
-	addr, err := env.PurgeAddr()
-	if err != nil {
-		log.Fatalf("failed fetching purgeAddr: %v", err)
-	}
+	logger := log.New("purgery")
 
-	log.Print("")
-	log.Print("")
-	log.Print("")
-	log.Printf("PURGE_ADDR: %q", addr)
-	log.Print("")
-	log.Print("")
-	log.Print("")
-
-	allocID, err := env.PurgerID()
-	if err != nil {
-		log.Fatalf("failed fetching purgerID: %v", err)
-	}
-
-	redisURL, err := env.RedisURL()
-	if err != nil {
-		log.Fatalf("failed fetching redisURL: %v", err)
+	cfg := env.LoadConfig(logger)
+	if cfg == nil {
+		os.Exit(ecLoadConfig)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	cache, err := cache.Dial(ctx, allocID, redisURL)
-	if err != nil {
-		log.Fatalf("failed dialing cache: %v", err)
+	cache := cache.Dial(ctx, logger, cfg)
+	if cache == nil {
+		os.Exit(ecDialCache)
 	}
+	defer closeCache(logger, cache)
 
-	for {
-		const errorSleep = time.Millisecond << 6
-		if err != nil {
+	purge := purge.New(cfg.VarnishAddr)
+
+	for ok := true; ; ok = tick(ctx, logger, cache, purge) {
+		// after each error sleep for a bit
+		if !ok {
+			const errorSleep = time.Millisecond << 6
 			time.Sleep(errorSleep)
 		}
-		if err = ctx.Err(); err != nil {
-			log.Printf("context canceled; bailing ...")
+
+		// bail if the context is no longer valid
+		if err := ctx.Err(); err != nil {
+			logger.Warn("context canceled; bailing ...", zap.Error(err))
 
 			break
 		}
-
-		var checkpoint, url string
-		switch checkpoint, url, err = cache.Next(ctx); {
-		case err != nil:
-			log.Printf("failed fetching url to purge: %v", err)
-
-			continue
-		case url == "":
-			continue
-		}
-
-		if err = purge.URL(ctx, url); err != nil {
-			log.Printf("failed purging %q: %v", url, err)
-
-			continue
-		}
-		log.Printf("purged %q; saving checkpoint ...", url)
-
-		if err = cache.Store(ctx, checkpoint); err != nil {
-			log.Printf("failed storing checkpoint: %q", err)
-		}
 	}
+}
+
+func closeCache(logger *zap.Logger, cache *cache.Cache) {
+	logger.Info("closing cache ...")
+
+	if err := cache.Close(); err != nil {
+		logger.Error("failed closing cache.",
+			zap.Error(err))
+
+		return
+	}
+
+	logger.Debug("cache closed.")
+}
+
+func tick(ctx context.Context, logger *zap.Logger, cache *cache.Cache, purge purge.Func) (ok bool) {
+	var checkpoint, url string
+	if checkpoint, url, ok = cache.Next(ctx, logger); ok && url != "" {
+		ok = purge(ctx, logger, url) &&
+			cache.Store(ctx, logger, checkpoint)
+	}
+
+	return
 }
