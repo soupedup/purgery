@@ -1,14 +1,16 @@
 ![Automated tests](https://github.com/soupedup/purgery/actions/workflows/test.yml/badge.svg)
 
-Purgery is a lightweight cache purging service intended to run alongside caching reverse proxies (varnish, nginx, etc).
+Purgery is a lightweight cache invalidation service intended to be ran alongside reverse caching proxies (Varnish, nginx, etc).
 
 ## The problem
 
-Some popular open source caching proxies don't offer official tools to issue cache purges across multiple instances. If you run caches in multiple regions, you'll need something like this to ensure you aren't serving stale content to users.
+Some popular open source caching proxies don't offer official tools to issue cache purges across multiple instances.
+
+If you run caches in multiple regions, you'll need something like this to ensure you aren't serving stale content to users.
 
 ## Requirements
 
-Purgery requires a Redis 6 instance to distribute requests. [Redis streams](https://redis.io/topics/streams-intro) ensure that purge fails can be reliably delivered, and replayed from a checkpoint after outages.
+Purgery requires a Redis (version 6.2+) instance to distribute requests. [Redis streams](https://redis.io/topics/streams-intro) ensure that purge fails can be reliably delivered, and replayed from a checkpoint after outages.
 
 ## Deployment
 
@@ -16,10 +18,10 @@ Purgery may be run as its own service, but you should ensure that it runs one in
 
 The following environment variables must be set in production:
 
-`REDIS_URL`: Your redis 6 connection string
-`VARNISH_ADDR`: The varnish server address this instance should target
+* `REDIS_URL`: Your Redis connection string (i.e: `redis:///localhost:6379/0`)
+* `VARNISH_ADDR`: The Varnish server address this instance should target
 
-Purgery only supports Varnish, and only versions that accept BAN verb requests over HTTP.
+Purgery only supports Varnish, and only versions that accept `BAN` verb requests over `HTTP`.
 
 [We provide a Varnish image](https://github.com/soupedup/varnish) with:
 
@@ -28,10 +30,12 @@ Purgery only supports Varnish, and only versions that accept BAN verb requests o
 
 ## Issuing cache purge requests
 
-Purging is done by a single [XADD](https://redis.io/commands/xadd) command sent to the redis `purgery:purge` key. See [purge.sh](https://github.com/soupedup/purgery/blob/main/purge.sh). `XADD` takes two arguments:
+Purging is done by a single [XADD](https://redis.io/commands/xadd) command sent to the Redis `purgery:purge` key. See [purge.sh](https://github.com/soupedup/purgery/blob/main/purge.sh).
 
-`MINID`: Timestamp in the past at which previous entries should be truncated. This is used as a simple mechanism to keep the stream from filling up indefinitely.
-`url`: Full URL to be purged. For now, the default Varnish configuration only supports [purging entire domains](https://github.com/soupedup/varnish/blob/main/default.vcl#L25). The path is ignored.
+`XADD` takes two arguments:
+
+* `MINID`: Timestamp in the past at which previous entries should be truncated. This is used as a simple mechanism to keep the stream from filling up indefinitely.
+* `url`: Full URL to be purged. For now, the default Varnish configuration only supports [purging entire domains](https://github.com/soupedup/varnish/blob/main/default.vcl#L25). The path is ignored.
 
 ## Deploying in Fly.io
 
