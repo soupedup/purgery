@@ -1,3 +1,5 @@
+![Automated tests](https://github.com/soupedup/purgery/actions/workflows/test.yml/badge.svg)
+
 Purgery is a lightweight cache purging service intended to run alongside HTTP cache servers (varnish, nginx, etc).
 
 ## The problem
