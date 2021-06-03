@@ -1,11 +1,7 @@
-app = "ensayo-purgery"
+app = "purgery"
 
 kill_signal = "SIGINT"
 kill_timeout = 5
-
-[env]
-  REDIS_URL = "redis://ensayo-redis.internal"
-  PROXY_APP_NAME = "ensayo-varnish"
 
 [experimental]
   auto_rollback = true
