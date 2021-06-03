@@ -1,6 +1,6 @@
 ![Automated tests](https://github.com/soupedup/purgery/actions/workflows/test.yml/badge.svg)
 
-Purgery is a lightweight cache invalidation service intended to be ran alongside reverse caching proxies (Varnish, nginx, etc).
+Purgery is a lightweight cache invalidation service intended to be ran alongside caching proxies (Varnish, nginx, etc).
 
 ## The problem
 
@@ -21,16 +21,16 @@ The following environment variables must be set in production:
 * `REDIS_URL`: Your Redis connection string (i.e: `redis:///localhost:6379/0`)
 * `VARNISH_ADDR`: The Varnish server address this instance should target
 
-Purgery only supports Varnish, and only versions that accept `BAN` verb requests over `HTTP`.
+Purgery only supports Varnish, and only versions that accept `BAN` verb requests over HTTP.
 
 [We provide a Varnish image](https://github.com/soupedup/varnish) with:
 
 * Default configuration supporting BAN requests over HTTP
 * An option to run Purgery in the same container alongside Varnish
 
-## Issuing cache purge requests
+## Issuing cache invalidation requests
 
-Purging is done by a single [XADD](https://redis.io/commands/xadd) command sent to the Redis `purgery:purge` key. See [purge.sh](https://github.com/soupedup/purgery/blob/main/purge.sh).
+Cache invalidation is achieved by a single [XADD](https://redis.io/commands/xadd) command sent to the Redis `purgery:purge` key. See [purge.sh](https://github.com/soupedup/purgery/blob/main/purge.sh).
 
 `XADD` takes two arguments:
 
