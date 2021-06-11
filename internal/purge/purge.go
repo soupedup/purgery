@@ -43,7 +43,7 @@ func newPurgeFunc(client *http.Client) Func {
 		logger = logger.With(log.URL(url))
 		logger.Info("purging ...")
 
-		req, err := http.NewRequestWithContext(ctx, "PURGE", url, nil)
+		req, err := http.NewRequestWithContext(ctx, "BAN", url, nil)
 		if err != nil {
 			logger.Warn("failed creating purge request.",
 				zap.Error(err))
