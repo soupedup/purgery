@@ -38,13 +38,13 @@ func Bind(logger *zap.Logger, on string) (l net.Listener, err error) {
 //
 // When Serve returns l will be closed. Contrary to similar functions of the
 // http package, Serve reports nil instead of http.ErrServerClosed.
-func Serve(ctx context.Context, logger *zap.Logger, l net.Listener, c *cache.Cache) (err error) {
+func Serve(ctx context.Context, logger *zap.Logger, l net.Listener, c *cache.Cache, apiKey string) (err error) {
 	srv := &http.Server{
 		ReadHeaderTimeout: time.Second << 3,
 		IdleTimeout:       time.Minute,
 		MaxHeaderBytes:    1 << 12,
 		ErrorLog:          zap.NewStdLog(logger),
-		Handler:           newHandler(logger, c),
+		Handler:           newHandler(logger, c, apiKey),
 	}
 
 	var wg sync.WaitGroup

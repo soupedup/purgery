@@ -26,6 +26,12 @@ func ServiceUnavailable(w http.ResponseWriter) {
 	code(w, http.StatusServiceUnavailable)
 }
 
+// Unauthorized writes a HTTP 401 Unauthorized response to the given
+// ResponseWriter.
+func Unauthorized(w http.ResponseWriter) {
+	code(w, http.StatusUnauthorized)
+}
+
 func code(w http.ResponseWriter, code int) {
 	http.Error(w, http.StatusText(code), code)
 }

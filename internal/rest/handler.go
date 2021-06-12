@@ -13,7 +13,7 @@ import (
 	"github.com/soupedup/purgery/internal/rest/internal/render"
 )
 
-func newHandler(logger *zap.Logger, cache *cache.Cache) http.Handler {
+func newHandler(logger *zap.Logger, cache *cache.Cache, apiKey string) http.Handler {
 	r := &handler{
 		Router: new(httprouter.Router),
 		logger: logger,
@@ -21,7 +21,9 @@ func newHandler(logger *zap.Logger, cache *cache.Cache) http.Handler {
 	}
 
 	r.HandlerFunc(http.MethodGet, "/health", r.health)
-	r.HandlerFunc(http.MethodPost, "/purge", r.purge)
+
+	purge := http.HandlerFunc(r.purge)
+	r.Handler(http.MethodPost, "/purge", middleware.Auth(apiKey, purge))
 
 	return middleware.Log(logger, r)
 }

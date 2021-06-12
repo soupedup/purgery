@@ -66,7 +66,7 @@ func run() (err error) {
 		defer wg.Done()
 		defer cancel()
 
-		err = rest.Serve(ctx, logger, l, c)
+		err = rest.Serve(ctx, logger, l, c, cfg.APIKey)
 	}()
 
 	wg.Wait()

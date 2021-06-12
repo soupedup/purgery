@@ -8,4 +8,5 @@ curl \
     -X POST \
     -H "Content-Type: application/json" \
     -d "{ \"url\": \"${1}\" }" \
+    -u "${API_KEY}123": \
     http://localhost:3000/purge

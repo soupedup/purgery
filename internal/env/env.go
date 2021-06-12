@@ -3,6 +3,7 @@ package env
 
 import (
 	"errors"
+	"math"
 	"os"
 	"strings"
 
@@ -45,6 +46,18 @@ func (cfg *Config) parseRedisURL(logger *zap.Logger, url string) bool {
 	return true
 }
 
+func (cfg *Config) setAPIKey(logger *zap.Logger, key string) bool {
+	// we have to make sure that the length of the key doesn't exceed
+	if l := len(key); l > math.MaxInt32 {
+		logger.Error("the API key is too long.",
+			zap.Int("length", l))
+
+		return false
+	}
+
+	return true
+}
+
 var errLoadConfig = exit.Wrap(common.ECLoadConfig,
 	errors.New("env: failed loading configuration"))
 
@@ -54,12 +67,14 @@ func LoadConfig(logger *zap.Logger) (*Config, error) {
 	var (
 		cfg      Config
 		redisURL string
+		apiKey   string
 	)
 
 	ok := []bool{
 		fetch(logger, &cfg.Addr, "ADDR"),
 
-		fetch(logger, &cfg.APIKey, "API_KEY"),
+		fetch(logger, &apiKey, "API_KEY") &&
+			cfg.setAPIKey(logger, apiKey),
 
 		fetch(logger, &cfg.PurgeryID, "PURGERY_ID"),
 
