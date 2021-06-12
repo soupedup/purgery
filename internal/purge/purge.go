@@ -9,11 +9,50 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/soupedup/purgery/internal/cache"
+	"github.com/soupedup/purgery/internal/common"
 	"github.com/soupedup/purgery/internal/log"
 )
 
 // Func is the set of functions capable of purging the cache.
 type Func func(ctx context.Context, logger *zap.Logger, varnishAddr string) bool
+
+// Run runs the Func until the given Context is cancelled.
+func (fn Func) Run(ctx context.Context, logger *zap.Logger, cache *cache.Cache) {
+	for ok := true; ; ok = fn.tick(ctx, logger, cache) {
+		// after each error sleep for a bit
+		if !ok {
+			const errorSleep = time.Millisecond << 6
+			time.Sleep(errorSleep)
+		}
+
+		// bail if the context is no longer valid
+		if err := ctx.Err(); err != nil {
+			logger.Warn("context canceled; bailing ...", zap.Error(err))
+
+			break
+		}
+	}
+}
+
+func (fn Func) tick(ctx context.Context, logger *zap.Logger, cache *cache.Cache) (ok bool) {
+	var checkpoint, url string
+	switch checkpoint, url, ok = cache.Next(ctx, logger); {
+	case !ok:
+		break
+	case url == "":
+		break
+	case !common.IsValidURL(url):
+		logger.Warn("invalid url fetched; dropping ...", log.URL(url))
+
+		ok = cache.Store(ctx, logger, checkpoint)
+	default:
+		ok = fn(ctx, logger, url) &&
+			cache.Store(ctx, logger, checkpoint)
+	}
+
+	return
+}
 
 // New initializes and returns a Func which purges against the given Varnish
 // address.

@@ -1,6 +1,8 @@
 // Package common implements functionality consumed by other packages.
 package common
 
+import "net/url"
+
 // AppName denotes the app's name.
 const AppName = "purgery"
 
@@ -14,4 +16,16 @@ const (
 
 	// ECDialCache is returned when the application is unable to dial its cache.
 	ECDialCache
+
+	// ECBind is returned when the application's embedded REST server fails to
+	// bind on the configured address.
+	ECBind
 )
+
+// IsValidURL reports whether the given URL is a valid one.
+func IsValidURL(rawurl string) bool {
+	url, err := url.Parse(rawurl)
+	return err == nil &&
+		rawurl != "" &&
+		url.Scheme == "http"
+}

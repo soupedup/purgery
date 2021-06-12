@@ -19,6 +19,8 @@ import (
 const (
 	keyspace = "purgery:"
 	stream   = keyspace + "purge"
+
+	healthy uintptr = 1
 )
 
 var errDial = exit.Wrap(common.ECDialCache,
@@ -31,7 +33,7 @@ func Dial(ctx context.Context, logger *zap.Logger, cfg *env.Config) (*Cache, err
 	if err := cfg.Redis.Ping(ctx).Err(); err != nil {
 		_ = cfg.Redis.Close()
 
-		logger.Error("failed pinging redis.",
+		logger.Error("failed dialing cache.",
 			zap.Error(err))
 
 		return nil, errDial
@@ -49,6 +51,22 @@ func Dial(ctx context.Context, logger *zap.Logger, cfg *env.Config) (*Cache, err
 type Cache struct {
 	client    *redis.Client
 	purgeryID string
+}
+
+// Ping pings the Redis instance the Cache is configured to connect to.
+func (c *Cache) Ping(ctx context.Context, logger *zap.Logger) bool {
+	logger.Info("pinging redis ...")
+
+	if err := c.client.Ping(ctx).Err(); err != nil {
+		logger.Error("failed pinging redis.",
+			zap.Error(err))
+
+		return false
+	}
+
+	logger.Debug("pinged.")
+
+	return true
 }
 
 // Close implements io.Closer for Cache.
@@ -142,6 +160,7 @@ func (c *Cache) Store(ctx context.Context, logger *zap.Logger, checkpoint string
 	logger.Info("storing checkpoint ...")
 
 	if err := c.client.Set(ctx, c.checkpointKey(), checkpoint, time.Minute).Err(); err != nil {
+
 		logger.Error("failed storing checkpoint.", zap.Error(err))
 
 		return false
@@ -150,4 +169,16 @@ func (c *Cache) Store(ctx context.Context, logger *zap.Logger, checkpoint string
 	logger.Debug("checkpoint stored.")
 
 	return true
+}
+
+// Purge enqueues a purge request for the given URL.
+func (c *Cache) Purge(ctx context.Context, logger *zap.Logger, url string) (err error) {
+	// TODO(azazeal): find client which implements XMIN
+	err = c.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: stream,
+		ID:     "*",
+		Values: []string{"url", url},
+	}).Err()
+
+	return
 }
