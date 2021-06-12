@@ -15,7 +15,7 @@ import (
 
 // Config wraps
 type Config struct {
-	// ID holds the value of the PURGERY_ID environment value.
+	// PurgeryID holds the value of the PURGERY_ID environment value.
 	PurgeryID string
 
 	// Redis holds a reference to the Redis client.
