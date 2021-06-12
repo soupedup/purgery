@@ -3,13 +3,17 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/azazeal/exit"
 	"github.com/go-redis/redis/v8"
+	"go.uber.org/zap"
+
+	"github.com/soupedup/purgery/internal/common"
 	"github.com/soupedup/purgery/internal/env"
 	"github.com/soupedup/purgery/internal/log"
-	"go.uber.org/zap"
 )
 
 const (
@@ -17,34 +21,28 @@ const (
 	stream   = keyspace + "purge"
 )
 
+var errDial = exit.Wrap(common.ECDialCache,
+	errors.New("cache: dial"))
+
 // Dial initializes and returns a new Cache client.
-func Dial(ctx context.Context, logger *zap.Logger, cfg *env.Config) *Cache {
+func Dial(ctx context.Context, logger *zap.Logger, cfg *env.Config) (*Cache, error) {
 	logger.Info("dialing cache ...")
 
-	opts, err := redis.ParseURL(cfg.RedisURL)
-	if err != nil {
-		logger.Error("failed parsing redis URL.",
-			zap.Error(err))
-
-		return nil
-	}
-	client := redis.NewClient(opts)
-
-	if err = client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
+	if err := cfg.Redis.Ping(ctx).Err(); err != nil {
+		_ = cfg.Redis.Close()
 
 		logger.Error("failed pinging redis.",
 			zap.Error(err))
 
-		return nil
+		return nil, errDial
 	}
 
 	logger.Debug("cache dialed.")
 
 	return &Cache{
-		client:    client,
+		client:    cfg.Redis,
 		purgeryID: cfg.PurgeryID,
-	}
+	}, nil
 }
 
 // Cache wraps the functionality of our redis client.

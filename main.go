@@ -2,17 +2,17 @@ package main
 
 import (
 	"context"
-	"os"
-
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/azazeal/exit"
+	"go.uber.org/zap"
 
 	"github.com/soupedup/purgery/internal/cache"
 	"github.com/soupedup/purgery/internal/env"
 	"github.com/soupedup/purgery/internal/log"
 	"github.com/soupedup/purgery/internal/purge"
-	"go.uber.org/zap"
 )
 
 const (
@@ -22,25 +22,29 @@ const (
 )
 
 func main() {
-	logger := log.New("purgery")
+	exit.With(run())
+}
 
-	cfg := env.LoadConfig(logger)
-	if cfg == nil {
-		os.Exit(ecLoadConfig)
+func run() (err error) {
+	logger := log.New("")
+
+	var cfg *env.Config
+	if cfg, err = env.LoadConfig(logger); err != nil {
+		return
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	cache := cache.Dial(ctx, logger, cfg)
-	if cache == nil {
-		os.Exit(ecDialCache)
+	var c *cache.Cache
+	if c, err = cache.Dial(ctx, logger, cfg); err != nil {
+		return
 	}
-	defer closeCache(logger, cache)
+	defer closeCache(logger, c)
 
 	purge := purge.New(cfg.VarnishAddr)
 
-	for ok := true; ; ok = tick(ctx, logger, cache, purge) {
+	for ok := true; ; ok = tick(ctx, logger, c, purge) {
 		// after each error sleep for a bit
 		if !ok {
 			const errorSleep = time.Millisecond << 6
@@ -48,12 +52,14 @@ func main() {
 		}
 
 		// bail if the context is no longer valid
-		if err := ctx.Err(); err != nil {
+		if err = ctx.Err(); err != nil {
 			logger.Warn("context canceled; bailing ...", zap.Error(err))
 
 			break
 		}
 	}
+
+	return
 }
 
 func closeCache(logger *zap.Logger, cache *cache.Cache) {

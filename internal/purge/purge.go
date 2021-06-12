@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/soupedup/purgery/internal/log"
 	"go.uber.org/zap"
+
+	"github.com/soupedup/purgery/internal/log"
 )
 
 // Func is the set of functions capable of purging the cache.

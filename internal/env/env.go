@@ -2,10 +2,15 @@
 package env
 
 import (
+	"errors"
 	"os"
 	"strings"
 
+	"github.com/azazeal/exit"
+	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
+
+	"github.com/soupedup/purgery/internal/common"
 )
 
 // Config wraps
@@ -13,26 +18,46 @@ type Config struct {
 	// ID holds the value of the PURGERY_ID environment value.
 	PurgeryID string
 
-	// Redis holds the value of the REDIS_URL environment variable.
-	RedisURL string
+	// Redis holds a reference to the Redis client.
+	Redis *redis.Client
 
 	// VarnishAddr holds the value of the VARNISH_ADDR environment value.
 	VarnishAddr string
 }
 
-func LoadConfig(logger *zap.Logger) *Config {
+func (cfg *Config) parseRedisURL(logger *zap.Logger, url string) bool {
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		logger.Error("failed parsing redis url.",
+			zap.Error(err))
+
+		return false
+	}
+
+	cfg.Redis = redis.NewClient(opt)
+
+	return true
+}
+
+var errLoadConfig = exit.Wrap(common.ECLoadConfig,
+	errors.New("env: failed loading configuration"))
+
+func LoadConfig(logger *zap.Logger) (*Config, error) {
 	logger.Info("loading configuration from the environment ...")
 
 	var cfg Config
 	l1 := fetch(logger, &cfg.PurgeryID, "PURGERY_ID")
-	l2 := fetch(logger, &cfg.RedisURL, "REDIS_URL")
+
+	var redisURL string
+	l2 := fetch(logger, &redisURL, "REDIS_URL") &&
+		cfg.parseRedisURL(logger, redisURL)
 	l3 := fetch(logger, &cfg.VarnishAddr, "VARNISH_ADDR")
 
 	if l1 && l2 && l3 {
-		return &cfg
+		return &cfg, nil
 	}
 
-	return nil
+	return nil, errLoadConfig
 }
 
 func fetch(logger *zap.Logger, into *string, key string) (ok bool) {
