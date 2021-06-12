@@ -34,9 +34,13 @@ services:
       context: .
     restart: unless-stopped
     environment:
+      ADDR: :3000
+      API_KEY: rest-api-key
       PURGERY_ID: purgery_1
       REDIS_URL: redis://redis
       VARNISH_ADDR: node1:80
+    ports:
+      - 8087:3000
 
   node2:
     image: ghcr.io/emgag/varnish:6.6.0
@@ -56,6 +60,10 @@ services:
       context: .
     restart: unless-stopped
     environment:
+      ADDR: :3000
+      API_KEY: rest-api-key
       PURGERY_ID: purgery_2
       REDIS_URL: redis://redis
       VARNISH_ADDR: node2:80
+    ports:
+      - 8088:3000
