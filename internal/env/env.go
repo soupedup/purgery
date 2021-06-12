@@ -15,6 +15,12 @@ import (
 
 // Config wraps
 type Config struct {
+	// Addr holds the value of the ADDR environment variable.
+	Addr string
+
+	// APIKey holds the value of the API_KEY environment variable.
+	APIKey string
+
 	// PurgeryID holds the value of the PURGERY_ID environment value.
 	PurgeryID string
 
@@ -45,19 +51,31 @@ var errLoadConfig = exit.Wrap(common.ECLoadConfig,
 func LoadConfig(logger *zap.Logger) (*Config, error) {
 	logger.Info("loading configuration from the environment ...")
 
-	var cfg Config
-	l1 := fetch(logger, &cfg.PurgeryID, "PURGERY_ID")
+	var (
+		cfg      Config
+		redisURL string
+	)
 
-	var redisURL string
-	l2 := fetch(logger, &redisURL, "REDIS_URL") &&
-		cfg.parseRedisURL(logger, redisURL)
-	l3 := fetch(logger, &cfg.VarnishAddr, "VARNISH_ADDR")
+	ok := []bool{
+		fetch(logger, &cfg.Addr, "ADDR"),
 
-	if l1 && l2 && l3 {
-		return &cfg, nil
+		fetch(logger, &cfg.APIKey, "API_KEY"),
+
+		fetch(logger, &cfg.PurgeryID, "PURGERY_ID"),
+
+		fetch(logger, &redisURL, "REDIS_URL") &&
+			cfg.parseRedisURL(logger, redisURL),
+
+		fetch(logger, &cfg.VarnishAddr, "VARNISH_ADDR"),
 	}
 
-	return nil, errLoadConfig
+	for _, ok := range ok {
+		if !ok {
+			return nil, errLoadConfig
+		}
+	}
+
+	return &cfg, nil
 }
 
 func fetch(logger *zap.Logger, into *string, key string) (ok bool) {
