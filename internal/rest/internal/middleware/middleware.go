@@ -34,6 +34,7 @@ func Log(logger *zap.Logger, h http.Handler) http.Handler {
 		h.ServeHTTP(rec, r)
 
 		logger.Info("processed.",
+			zap.String("addr", r.RemoteAddr),
 			zap.String("path", r.URL.Path),
 			zap.Int("status", rec.status),
 			zap.Duration("after", time.Since(rec.startedAt)),
