@@ -38,11 +38,8 @@ func run() (err error) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	var c *cache.Cache
-	if c, err = cache.Dial(ctx, logger, cfg); err != nil {
-		return
-	}
-	defer closeCache(logger, c)
+	cache := cache.New(cfg.PurgeryID, cfg.Redis)
+	defer closeCache(logger, cache)
 
 	var l net.Listener
 	if l, err = rest.Bind(logger, cfg.Addr); err != nil {
@@ -58,7 +55,7 @@ func run() (err error) {
 		defer cancel()
 
 		purge.New(cfg.VarnishAddr).
-			Run(ctx, logger, c)
+			Run(ctx, logger, cache)
 	}()
 
 	wg.Add(1)
@@ -66,7 +63,7 @@ func run() (err error) {
 		defer wg.Done()
 		defer cancel()
 
-		err = rest.Serve(ctx, logger, l, c, cfg.APIKey)
+		err = rest.Serve(ctx, logger, l, cache, cfg.APIKey)
 	}()
 
 	wg.Wait()

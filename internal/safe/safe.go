@@ -1,15 +1,16 @@
 // Package safe implements secure functionality.
 package safe
 
-import (
-	"crypto/subtle"
-	"math"
-)
+import "crypto/subtle"
+
+// MaxCompareLen denotes the maximum size, in bytes, for strings that the
+// Compare function supports.
+const MaxCompareLen = 1 << 10
 
 // Compare tries to compares the given strings in constant time.
 //
 // Compare always returns false in case any of the given strings is longer than
-// math.MaxInt32 bytes.
+// MaxCompareLen bytes.
 func Compare(expected, actual string) bool {
 	if !haveEqualLen(expected, actual) {
 		return !areEqual(actual, actual)
@@ -18,27 +19,25 @@ func Compare(expected, actual string) bool {
 	return areEqual(expected, actual)
 }
 
-func haveEqualLen(expected, given string) bool {
-	const max = math.MaxInt32
-
+func haveEqualLen(expected, actual string) bool {
 	switch {
-	case len(expected) > max, len(given) > max:
+	case len(expected) > MaxCompareLen, len(actual) > MaxCompareLen:
 		return false
-	case subtle.ConstantTimeEq(int32(len(expected)), int32(len(given))) != 1:
+	case subtle.ConstantTimeEq(int32(len(expected)), int32(len(actual))) != 1:
 		return false
 	default:
 		return true
 	}
 }
 
-func areEqual(x, y string) bool {
-	if len(x) != len(y) {
+func areEqual(expected, actual string) bool {
+	if len(expected) != len(actual) {
 		return false
 	}
 
 	var v byte
-	for i := 0; i < len(x); i++ {
-		v |= x[i] ^ y[i]
+	for i := 0; i < len(expected); i++ {
+		v |= expected[i] ^ actual[i]
 	}
 
 	return subtle.ConstantTimeByteEq(v, 0) == 1

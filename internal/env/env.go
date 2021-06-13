@@ -3,15 +3,16 @@ package env
 
 import (
 	"errors"
-	"math"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/azazeal/exit"
-	"github.com/go-redis/redis/v8"
+	"github.com/gomodule/redigo/redis"
 	"go.uber.org/zap"
 
 	"github.com/soupedup/purgery/internal/common"
+	"github.com/soupedup/purgery/internal/safe"
 )
 
 // Config wraps
@@ -25,35 +26,56 @@ type Config struct {
 	// PurgeryID holds the value of the PURGERY_ID environment value.
 	PurgeryID string
 
-	// Redis holds a reference to the Redis client.
-	Redis *redis.Client
+	// Redis holds a reference to the Redis connection pool.
+	Redis *redis.Pool
 
 	// VarnishAddr holds the value of the VARNISH_ADDR environment value.
 	VarnishAddr string
 }
 
-func (cfg *Config) parseRedisURL(logger *zap.Logger, url string) bool {
-	opt, err := redis.ParseURL(url)
+var redisDialOpts = []redis.DialOption{
+	redis.DialConnectTimeout(5 * time.Second),
+	redis.DialReadTimeout(3 * time.Second),
+	redis.DialWriteTimeout(3 * time.Second),
+}
+
+func (cfg *Config) dialRedis(logger *zap.Logger, url string) bool {
+	logger.Info("dialing redis ...")
+
+	conn, err := redis.DialURL(url, redisDialOpts...)
 	if err != nil {
-		logger.Error("failed parsing redis url.",
+		logger.Error("failed dialing redis.",
 			zap.Error(err))
 
 		return false
 	}
+	_ = conn.Close()
 
-	cfg.Redis = redis.NewClient(opt)
+	cfg.Redis = &redis.Pool{
+		MaxIdle:     5,
+		IdleTimeout: 10 * time.Minute,
+		Wait:        true,
+		Dial: func() (redis.Conn, error) {
+			return redis.DialURL(url, redisDialOpts...)
+		},
+	}
+
+	logger.Debug("redis dialed.")
 
 	return true
 }
 
 func (cfg *Config) setAPIKey(logger *zap.Logger, key string) bool {
 	// we have to make sure that the length of the key doesn't exceed
-	if l := len(key); l > math.MaxInt32 {
+	if l := len(key); l > safe.MaxCompareLen {
 		logger.Error("the API key is too long.",
-			zap.Int("length", l))
+			zap.Int("length", l),
+			zap.Int("max", safe.MaxCompareLen))
 
 		return false
 	}
+
+	cfg.APIKey = key
 
 	return true
 }
@@ -79,7 +101,7 @@ func LoadConfig(logger *zap.Logger) (*Config, error) {
 		fetch(logger, &cfg.PurgeryID, "PURGERY_ID"),
 
 		fetch(logger, &redisURL, "REDIS_URL") &&
-			cfg.parseRedisURL(logger, redisURL),
+			cfg.dialRedis(logger, redisURL),
 
 		fetch(logger, &cfg.VarnishAddr, "VARNISH_ADDR"),
 	}

@@ -37,7 +37,7 @@ func (fn Func) Run(ctx context.Context, logger *zap.Logger, cache *cache.Cache) 
 
 func (fn Func) tick(ctx context.Context, logger *zap.Logger, cache *cache.Cache) (ok bool) {
 	var checkpoint, url string
-	switch checkpoint, url, ok = cache.Next(ctx, logger); {
+	switch checkpoint, url, ok = cache.Next(logger); {
 	case !ok:
 		break
 	case url == "":
@@ -45,10 +45,10 @@ func (fn Func) tick(ctx context.Context, logger *zap.Logger, cache *cache.Cache)
 	case !common.IsValidURL(url):
 		logger.Warn("invalid url fetched; dropping ...", log.URL(url))
 
-		ok = cache.Store(ctx, logger, checkpoint)
+		ok = cache.Store(logger, checkpoint)
 	default:
 		ok = fn(ctx, logger, url) &&
-			cache.Store(ctx, logger, checkpoint)
+			cache.Store(logger, checkpoint)
 	}
 
 	return

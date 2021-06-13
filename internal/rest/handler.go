@@ -9,6 +9,7 @@ import (
 
 	"github.com/soupedup/purgery/internal/cache"
 	"github.com/soupedup/purgery/internal/common"
+
 	"github.com/soupedup/purgery/internal/rest/internal/middleware"
 	"github.com/soupedup/purgery/internal/rest/internal/render"
 )
@@ -35,7 +36,7 @@ type handler struct {
 }
 
 func (h *handler) health(w http.ResponseWriter, r *http.Request) {
-	if h.cache.Ping(r.Context(), h.logger) {
+	if h.cache.Ping(h.logger) {
 		render.NoContent(w)
 	} else {
 		render.ServiceUnavailable(w)
@@ -54,7 +55,7 @@ func (h *handler) purge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.cache.Purge(r.Context(), h.logger, payload.URL); err != nil {
+	if !h.cache.EnqueuePurgeRequest(h.logger, payload.URL) {
 		render.InternalServerError(w)
 
 		return

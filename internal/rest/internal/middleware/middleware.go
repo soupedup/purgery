@@ -7,14 +7,16 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/soupedup/purgery/internal/safe"
+
 	"github.com/soupedup/purgery/internal/rest/internal/render"
-	"github.com/soupedup/purgery/internal/rest/internal/safe"
 )
 
 // Auth implements a BasicAuth middleware.
 func Auth(key string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, _, ok := r.BasicAuth()
+
 		if !ok || !safe.Compare(key, user) {
 			render.Unauthorized(w)
 
