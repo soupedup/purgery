@@ -15,10 +15,12 @@ services:
       - "8084:80"
   
   node1:
-    build:
-      dockerfile: Dockerfile.varnish
-      context: varnish
+    image: ghcr.io/emgag/varnish:6.6.0
+    depends_on:
+       - nginx
     restart: unless-stopped
+    volumes:
+      - ./default.vcl:/etc/varnish/default.vcl
     environment:
       BACKEND: "nginx"
     ports:
@@ -37,9 +39,11 @@ services:
       VARNISH_ADDR: node1:80
 
   node2:
-    build:
-      dockerfile: Dockerfile.varnish
-      context: varnish
+    image: ghcr.io/emgag/varnish:6.6.0
+    depends_on:
+       - nginx
+    volumes:
+      - ./default.vcl:/etc/varnish/default.vcl
     restart: unless-stopped
     ports:
       - 8086:80

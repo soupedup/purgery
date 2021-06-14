@@ -1,21 +1,14 @@
 vcl 4.1;
 
 import std;
-import dynamic;
-import directors;
-backend default none;
 
-
-sub vcl_init {
-  new ddir = dynamic.director(
-    port = "8080",
-    ttl = 10s
-  );
+backend default {
+  .host = "nginx";
+  .port = "80";
 }
 
-sub vcl_recv {
-    set req.backend_hint = ddir.backend("ensayo.internal");
 
+sub vcl_recv {
     if (req.method == "BAN") {
         # Same ACL check as above:
         # if (!client.ip ~ purge) {
@@ -29,17 +22,11 @@ sub vcl_recv {
             return(synth(400, std.ban_error()));
         }
     }
-
 }
 
 sub vcl_backend_response {
     set beresp.http.host = bereq.http.host;
 }
-
-sub vcl_deliver {
-    unset resp.http.host;
-}
-
 
 sub vcl_hit {
     set req.http.x-cache = "hit";
@@ -63,6 +50,9 @@ sub vcl_synth {
 }
 
 sub vcl_deliver {
+
+    unset resp.http.host;
+
     if (obj.uncacheable) {
         set req.http.x-cache = req.http.x-cache + " uncacheable" ;
     } else {
