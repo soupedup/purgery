@@ -49,6 +49,7 @@ func TestPurge(t *testing.T) {
 
 	client := New(srv.URL+"//", "123")
 	assert.Equal(t, srv.URL, client.RootURL())
+	assert.Equal(t, time.Minute>>1, client.http.Timeout)
 
 	cases := map[string]struct {
 		ctx context.Context
@@ -94,6 +95,7 @@ func TestPurge(t *testing.T) {
 		kase := cases[url]
 
 		got := client.Purge(kase.ctx, url)
+		t.Log(got)
 		assert.Equal(t, kase.exp, got, "url: %s", url)
 	}
 }

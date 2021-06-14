@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 // New initializes and returns a Purgery client for the purgery API running at
@@ -112,6 +113,7 @@ func (c *Client) Purge(ctx context.Context, url string) (err error) {
 
 func buildClient(apiKey string) *http.Client {
 	return &http.Client{
+		Timeout: 30 * time.Second,
 		Transport: &apiKeyAuth{
 			RoundTripper: http.DefaultTransport,
 			apiKey:       apiKey,
