@@ -2,11 +2,14 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/soupedup/purgery/internal/common"
 )
 
 const stampLayout = "2006-01-02 15:04:05.000"
@@ -31,7 +34,7 @@ var cfg = zap.Config{
 var logger *zap.Logger // setup during init
 
 func init() {
-	if strings.ToLower(os.Getenv("TRACE_FORMAT")) == "json" {
+	if strings.ToLower(os.Getenv("LOG_FORMAT")) == "json" {
 		// we're using structured logging
 		cfg.Encoding = "json"
 		cfg.EncoderConfig.TimeKey = zapcore.OmitKey
@@ -39,7 +42,7 @@ func init() {
 	}
 
 	var level zapcore.Level
-	switch strings.ToLower(os.Getenv("TRACE_LEVEL")) {
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
 	default:
 		level = zapcore.InfoLevel
 	case "debug":
@@ -59,6 +62,12 @@ func init() {
 
 // New returns a reference to a Logger with the given name.
 func New(name string) *zap.Logger {
+	if name == "" {
+		name = common.AppName
+	} else {
+		name = fmt.Sprintf("%s.%s", common.AppName, name)
+	}
+
 	return logger.Named(name)
 }
 

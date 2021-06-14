@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
-	"os"
-
+	"net"
 	"os/signal"
+	"sync"
 	"syscall"
-	"time"
+
+	"github.com/azazeal/exit"
+	"go.uber.org/zap"
 
 	"github.com/soupedup/purgery/internal/cache"
 	"github.com/soupedup/purgery/internal/env"
 	"github.com/soupedup/purgery/internal/log"
 	"github.com/soupedup/purgery/internal/purge"
-	"go.uber.org/zap"
+	"github.com/soupedup/purgery/internal/rest"
 )
 
 const (
@@ -22,38 +24,51 @@ const (
 )
 
 func main() {
-	logger := log.New("purgery")
+	exit.With(run())
+}
 
-	cfg := env.LoadConfig(logger)
-	if cfg == nil {
-		os.Exit(ecLoadConfig)
+func run() (err error) {
+	logger := log.New("")
+
+	var cfg *env.Config
+	if cfg, err = env.LoadConfig(logger); err != nil {
+		return
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	cache := cache.Dial(ctx, logger, cfg)
-	if cache == nil {
-		os.Exit(ecDialCache)
-	}
+	cache := cache.New(cfg.PurgeryID, cfg.Redis)
 	defer closeCache(logger, cache)
 
-	purge := purge.New(cfg.VarnishAddr)
-
-	for ok := true; ; ok = tick(ctx, logger, cache, purge) {
-		// after each error sleep for a bit
-		if !ok {
-			const errorSleep = time.Millisecond << 6
-			time.Sleep(errorSleep)
-		}
-
-		// bail if the context is no longer valid
-		if err := ctx.Err(); err != nil {
-			logger.Warn("context canceled; bailing ...", zap.Error(err))
-
-			break
-		}
+	var l net.Listener
+	if l, err = rest.Bind(logger, cfg.Addr); err != nil {
+		return
 	}
+	// we don't need to close the listener as rest.Serve will.
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+
+		purge.New(cfg.VarnishAddr).
+			Run(ctx, logger, cache)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+
+		err = rest.Serve(ctx, logger, l, cache, cfg.APIKey)
+	}()
+
+	wg.Wait()
+
+	return
 }
 
 func closeCache(logger *zap.Logger, cache *cache.Cache) {
@@ -67,14 +82,4 @@ func closeCache(logger *zap.Logger, cache *cache.Cache) {
 	}
 
 	logger.Debug("cache closed.")
-}
-
-func tick(ctx context.Context, logger *zap.Logger, cache *cache.Cache, purge purge.Func) (ok bool) {
-	var checkpoint, url string
-	if checkpoint, url, ok = cache.Next(ctx, logger); ok && url != "" {
-		ok = purge(ctx, logger, url) &&
-			cache.Store(ctx, logger, checkpoint)
-	}
-
-	return
 }

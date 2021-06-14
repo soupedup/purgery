@@ -2,63 +2,72 @@
 package cache
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/soupedup/purgery/internal/env"
-	"github.com/soupedup/purgery/internal/log"
+	"github.com/azazeal/exit"
+	"github.com/gomodule/redigo/redis"
 	"go.uber.org/zap"
+
+	"github.com/soupedup/purgery/internal/common"
+	"github.com/soupedup/purgery/internal/log"
 )
 
 const (
-	keyspace = "purgery:"
+	keyspace = common.AppName + ":"
 	stream   = keyspace + "purge"
 )
 
-// Dial initializes and returns a new Cache client.
-func Dial(ctx context.Context, logger *zap.Logger, cfg *env.Config) *Cache {
-	logger.Info("dialing cache ...")
+var errDial = exit.Wrap(common.ECDialCache,
+	errors.New("cache: dial"))
 
-	opts, err := redis.ParseURL(cfg.RedisURL)
-	if err != nil {
-		logger.Error("failed parsing redis URL.",
-			zap.Error(err))
-
-		return nil
-	}
-	client := redis.NewClient(opts)
-
-	if err = client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
-
-		logger.Error("failed pinging redis.",
-			zap.Error(err))
-
-		return nil
-	}
-
-	logger.Debug("cache dialed.")
-
+// New initializes and returns a new Cache, for the given ID, which works on the
+// given Conn.
+func New(purgeryID string, pool *redis.Pool) *Cache {
 	return &Cache{
-		client:    client,
-		purgeryID: cfg.PurgeryID,
+		redis:     pool,
+		purgeryID: purgeryID,
 	}
 }
 
 // Cache wraps the functionality of our redis client.
 type Cache struct {
-	client    *redis.Client
+	redis     *redis.Pool
 	purgeryID string
 }
 
-// Close implements io.Closer for Cache.
-func (c *Cache) Close() error {
-	return c.client.Close()
+// Ping pings the Redis instance the Cache is configured to connect to.
+func (c *Cache) Ping(logger *zap.Logger) bool {
+	conn := c.redis.Get()
+	defer conn.Close()
+
+	logger.Info("pinging redis ...")
+
+	switch got, err := redis.String(conn.Do("PING", common.AppName)); {
+	case err != nil:
+		logger.Error("failed pinging redis.",
+			zap.Error(err))
+
+		return false
+	case common.AppName != got:
+		logger.Warn("read unexpected ping response.",
+			zap.String("exp", common.AppName),
+			zap.String("got", got))
+
+		return false
+	default:
+		logger.Debug("pinged.")
+
+		return true
+	}
 }
 
-var checkpointScript = redis.NewScript(`
+// Close closes the underlying Cache connection pool.
+func (c *Cache) Close() error {
+	return c.redis.Close()
+}
+
+var checkpointScript = redis.NewScript(2, `
 	local at = redis.call('TIME')
 	local ms = at[2] - (at[2] % 1000)
 	ms = (at[1] * 1000) + (ms / 1000)
@@ -77,15 +86,10 @@ func (c *Cache) checkpointKey() string {
 	return fmt.Sprintf("%scheckpoints:%s", keyspace, c.purgeryID)
 }
 
-func (c *Cache) checkpoint(ctx context.Context, logger *zap.Logger) string {
-	keys := []string{
-		stream,
-		c.checkpointKey(),
-	}
-
+func (c *Cache) checkpoint(logger *zap.Logger, conn redis.Conn) string {
 	logger.Debug("fetching checkpoint ...")
 
-	cp, err := checkpointScript.Run(ctx, c.client, keys).Text()
+	cp, err := redis.String(checkpointScript.Do(conn, stream, c.checkpointKey()))
 	if err != nil {
 		logger.Warn("failed loading checkpoint.",
 			zap.Error(err))
@@ -101,33 +105,39 @@ func (c *Cache) checkpoint(ctx context.Context, logger *zap.Logger) string {
 
 // Next returns the next url to be purged or empty strings in case such
 // a URL does not exist yet.
-func (c *Cache) Next(ctx context.Context, logger *zap.Logger) (cp, url string, ok bool) {
-	if cp = c.checkpoint(ctx, logger); cp == "" {
+func (c *Cache) Next(logger *zap.Logger) (cp, url string, ok bool) {
+	conn := c.redis.Get()
+	defer conn.Close()
+
+	if cp = c.checkpoint(logger, conn); cp == "" {
 		return
 	}
 
 	logger.Debug("xreading ...")
 
-	cmd := c.client.XRead(ctx, &redis.XReadArgs{
-		Count:   1,
-		Block:   time.Second,
-		Streams: []string{stream, cp},
-	})
+	ret, err := redis.Values(conn.Do("XREAD",
+		"COUNT", 1,
+		"BLOCK", 1000,
+		"STREAMS", stream,
+		cp,
+	))
 
-	switch err := cmd.Err(); err {
+	switch err {
 	default:
 		logger.Warn("failed xreading.",
 			zap.Error(err))
-	case redis.Nil:
+	case redis.ErrNil:
 		ok = true
 
 		logger.Debug("nothing xread.")
 	case nil:
 		ok = true
 
-		msg := cmd.Val()[0].Messages[0]
-		cp = msg.ID
-		url = msg.Values["url"].(string)
+		msg := ret[0].([]interface{})[1].([]interface{})[0].([]interface{})
+		cp = string(msg[0].([]byte))
+
+		pairs := msg[1].([]interface{})
+		url = string(pairs[1].([]byte))
 
 		logger.Info("xread.",
 			log.URL(url),
@@ -139,17 +149,59 @@ func (c *Cache) Next(ctx context.Context, logger *zap.Logger) (cp, url string, o
 }
 
 // Store saves the given value as the Cache's checkpoint.
-func (c *Cache) Store(ctx context.Context, logger *zap.Logger, checkpoint string) bool {
+func (c *Cache) Store(logger *zap.Logger, checkpoint string) bool {
+	conn := c.redis.Get()
+	defer conn.Close()
+
 	logger = logger.With(log.Checkpoint(checkpoint))
 	logger.Info("storing checkpoint ...")
 
-	if err := c.client.Set(ctx, c.checkpointKey(), checkpoint, time.Minute).Err(); err != nil {
-		logger.Error("failed storing checkpoint.", zap.Error(err))
+	res, err := redis.String(conn.Do("SET",
+		c.checkpointKey(), checkpoint,
+		"EX", 60,
+	))
+
+	switch {
+	case err != nil:
+		logger.Error("failed storing checkpoint.",
+			zap.Error(err))
+
+		return false
+	case res != "OK":
+		logger.Warn("wrong redis SET response.",
+			zap.String("response", res))
+
+		return false
+	default:
+		logger.Debug("checkpoint stored.")
+
+		return true
+	}
+}
+
+// EnqueuePurgeRequest enqueues a purge request for the given URL.
+func (c *Cache) EnqueuePurgeRequest(logger *zap.Logger, url string) bool {
+	conn := c.redis.Get()
+	defer conn.Close()
+
+	logger = logger.With(log.URL(url))
+	logger.Info("enqueueing purge request ...")
+
+	id, err := redis.String(conn.Do("XADD",
+		stream,
+		"MINID", "~", "0-0",
+		"*",
+		"url", url,
+	))
+
+	if err != nil {
+		logger.Error("failed enqueueing purge request.",
+			zap.Error(err))
 
 		return false
 	}
 
-	logger.Debug("checkpoint stored.")
+	logger.Debug("enqueued purge request.", zap.String("id", id))
 
 	return true
 }
