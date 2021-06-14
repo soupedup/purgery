@@ -24,8 +24,11 @@ const (
 
 // IsValidURL reports whether the given URL is a valid one.
 func IsValidURL(rawurl string) bool {
+	if rawurl == "" {
+		return false
+	}
+
 	url, err := url.Parse(rawurl)
 	return err == nil &&
-		rawurl != "" &&
 		url.Scheme == "http"
 }
