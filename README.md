@@ -1,6 +1,6 @@
 ![Automated tests](https://github.com/soupedup/purgery/actions/workflows/test.yml/badge.svg)
 
-Purgery is a lightweight cache invalidation service intended to be ran alongside caching proxies (Varnish, nginx, etc).
+Purgery is a lightweight cache invalidation service intended to be ran alongside Varnish.
 
 ## The problem
 
