@@ -18,6 +18,19 @@ import (
 
 func TestPurge(t *testing.T) {
 	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
+		key, _, ok := r.BasicAuth()
+		if !ok {
+			panic("auth missing")
+		}
+
+		status := func(code int) {
+			http.Error(w, http.StatusText(code), code)
+		}
+
+		if "123" != key {
+			status(http.StatusUnauthorized)
+		}
+
 		if r.Method != http.MethodPost {
 			panic(fmt.Errorf("invalid method: %q", r.Method))
 		}
@@ -30,10 +43,6 @@ func TestPurge(t *testing.T) {
 			panic(err)
 		}
 
-		status := func(code int) {
-			http.Error(w, http.StatusText(code), code)
-		}
-
 		switch payload.URL {
 		case "ok":
 			w.WriteHeader(http.StatusNoContent)
@@ -43,6 +52,8 @@ func TestPurge(t *testing.T) {
 			status(http.StatusUnprocessableEntity)
 		case "internalServerError":
 			status(http.StatusInternalServerError)
+		case "unauthorized":
+			status(http.StatusUnauthorized)
 		}
 	})
 	defer srv.Close()
@@ -88,6 +99,10 @@ func TestPurge(t *testing.T) {
 		"internalServerError": {
 			ctx: context.Background(),
 			exp: errInternalServerError,
+		},
+		"unauthorized": {
+			ctx: context.Background(),
+			exp: errUnauthorized,
 		},
 	}
 

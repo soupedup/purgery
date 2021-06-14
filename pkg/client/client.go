@@ -63,7 +63,10 @@ func (err errInvalidStatusCode) Error() string {
 	return fmt.Sprintf("purgery: invalid response status code (%d)", int(err))
 }
 
-var errInternalServerError = errors.New("purgery: internal server error")
+var (
+	errInternalServerError = errors.New("purgery: internal server error")
+	errUnauthorized        = errors.New("purgery: unauthorized")
+)
 
 type errInvalidURL string
 
@@ -104,6 +107,8 @@ func (c *Client) Purge(ctx context.Context, url string) (err error) {
 		break
 	case http.StatusUnprocessableEntity:
 		err = errInvalidURL(url)
+	case http.StatusUnauthorized:
+		err = errUnauthorized
 	case http.StatusInternalServerError:
 		err = errInternalServerError
 	}
