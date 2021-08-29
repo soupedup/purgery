@@ -54,7 +54,8 @@ type Client struct {
 	purgeURL string
 }
 
-// Root returns the root URL of the API the Client is configured to run against.
+// RootURL returns the root URL of the API the Client is configured to run
+// against.
 func (c *Client) RootURL() string { return c.rootURL }
 
 type errInvalidStatusCode int
