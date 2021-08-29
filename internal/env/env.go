@@ -2,7 +2,6 @@
 package env
 
 import (
-	"errors"
 	"os"
 	"strings"
 	"time"
@@ -80,9 +79,11 @@ func (cfg *Config) setAPIKey(logger *zap.Logger, key string) bool {
 	return true
 }
 
-var errLoadConfig = exit.Wrap(common.ECLoadConfig,
-	errors.New("env: failed loading configuration"))
+var errLoadConfig = exit.Wrapf(common.ECLoadConfig,
+	"%/env: failed loading configuration",
+	common.AppName)
 
+// LoadConfig returns a copy of the configuration it loads from the environment.
 func LoadConfig(logger *zap.Logger) (*Config, error) {
 	logger.Info("loading configuration from the environment ...")
 
